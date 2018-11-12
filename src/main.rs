@@ -1,5 +1,9 @@
+extern crate smallbitvec;
+
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
+
+use smallbitvec::SmallBitVec;
 
 #[derive(Debug, Eq, PartialEq)]
 enum NodeType {
@@ -32,39 +36,38 @@ impl PartialOrd for Node {
 
 pub struct HuffmanCode {
     pub code_table: HashMap<char, String>,
-    pub encoded: String,
+    pub compressed: SmallBitVec,
 }
 
 pub fn huffman_code(s: &str) -> HuffmanCode {
     let freq_map = build_freq_map(s);
     let tree = build_huffman_tree(&freq_map);
     let code_table = build_code_table(tree);
-    let encoded = encode(s, &code_table);
+    let compressed = compress(s, &code_table);
 
     HuffmanCode {
         code_table: code_table,
-        encoded: encoded,
+        compressed: compressed,
     }
+}
+
+pub fn huffman_decode(huffman_code: &HuffmanCode) -> String {
+    String::new()
 }
 
 fn build_freq_map(s: &str) -> HashMap<char, i32> {
     let mut freq_map = HashMap::new();
-
     for c in s.chars() {
-        let mut freq = match freq_map.get(&c) {
-            Some(freq) => *freq,
-            None => 0
-        };
-        freq += 1;
-        freq_map.insert(c, freq);
+        let freq = freq_map.entry(c).or_insert(0);
+        *freq += 1;
     }
-
     freq_map
 }
 
 fn build_huffman_tree(freq_map: &HashMap<char, i32>) -> Node {
     let mut min_heap = BinaryHeap::new();
 
+    // Populate the min-heap with all unique characters.
     for (c, freq) in freq_map.iter() {
         min_heap.push(Node {
             freq: *freq,
@@ -73,6 +76,7 @@ fn build_huffman_tree(freq_map: &HashMap<char, i32>) -> Node {
     }
 
     while min_heap.len() > 1 {
+        // Pop two minimum frequency nodes off the heap.
         let node1 = min_heap.pop().unwrap();
         let node2 = min_heap.pop().unwrap();
         min_heap.push(Node {
@@ -84,12 +88,12 @@ fn build_huffman_tree(freq_map: &HashMap<char, i32>) -> Node {
         });
     }
 
+    // Return the root node.
     min_heap.pop().unwrap()
 }
 
 fn build_code_table(root: Node) -> HashMap<char, String> {
     let mut table = HashMap::new();
-
     let mut node_stack = Vec::new();
     node_stack.push((root, String::new()));
 
@@ -112,17 +116,18 @@ fn build_code_table(root: Node) -> HashMap<char, String> {
     table
 }
 
-fn encode(s: &str, table: &HashMap<char, String>) -> String {
+fn compress(s: &str, table: &HashMap<char, String>) -> SmallBitVec {
     s.chars()
         .map(|c| table.get(&c).unwrap())
         .flat_map(|s| s.chars())
+        .map(|c| if c == '1' { true } else { false })
         .collect()
 }
 
 fn main() {
     let s = String::from("encode this huffman string");
     let huffman = huffman_code(&s);
-    println!("{}", huffman.encoded);
+    println!("{:?}", huffman.compressed);
 }
 
 #[cfg(test)]
@@ -201,6 +206,13 @@ mod tests {
         correct_code_table.insert('e', String::from("111"));
 
         assert_eq!(code_table, correct_code_table);
+    }
+
+    #[test]
+    fn encode_decode() {
+        let input = "this should work";
+        let huffman = huffman_code(&input);
+        assert_eq!(input, huffman_decode(&huffman)); 
     }
 
     fn build_input() -> String {
